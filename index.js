@@ -1,13 +1,11 @@
-const fs = require('fs');
-
 const gazou = require('gazou-client');
+
+const Directory = require('./util/directory');
 
 let options = {
 	push: false,
 	extraDirectories: []
 };
-
-const primaryDirectory = process.argv[0];
 
 for (let i = 1; i < process.argv.length; i++) {
 	switch (process.argv[i]) {
@@ -17,14 +15,14 @@ for (let i = 1; i < process.argv.length; i++) {
 			break;
 		case '--extradirectory':
 		case '-d':
-			options.extraDirectories.push(process.argv[i++]);
+			options.extraDirectories.push(process.argv[++i]);
 			break;
 	}
 }
 
-if (primaryDirectory === undefined)
+if (options.extraDirectories.length === 0)
 	throw 'Please provide a directory to operate over';
-
+const primaryDirectory = new Directory(options.extraDirectories[0]);
 
 
 if (options.push) {
