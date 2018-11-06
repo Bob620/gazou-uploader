@@ -24,6 +24,11 @@ if (options.extraDirectories.length === 0)
 	throw 'Please provide a directory to operate over';
 const primaryDirectory = new Directory(options.extraDirectories[0]);
 
+primaryDirectory.on('ready', () => {
+	console.log(primaryDirectory);
+});
+
+primaryDirectory.on('error', console.log);
 
 if (options.push) {
 
