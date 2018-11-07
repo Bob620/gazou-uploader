@@ -1,0 +1,10 @@
+{
+  "globalStorage": {
+    "enabled": true,
+    "directory": "~/.gazoustorage"
+  },
+  "autoConnect": {
+    "ip": "localhost",
+    "userId": ""
+  }
+}
