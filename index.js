@@ -1,4 +1,5 @@
 const readline = require('readline');
+const child_process = require('child_process');
 
 const config = require('./config/config');
 
@@ -59,30 +60,40 @@ if (!options.userId && !config.autoConnect.userId)
 gazou.connect().then(async () => {
 	await gazou.authInit(options.userId ? options.userId : config.autoConnect.userId);
 
-	const [directory] = await Promise.all([
-		new Promise((resolve, reject) => {
-			const directory = new Directory(options.extraDirectories[0]);
-			directory.once('ready', resolve);
-			directory.once('error', reject);
-		}),
-		gazou.authSubmit(await new Promise(resolve => {
-			const rl = readline.createInterface({
-				input: process.stdin,
-				output: process.stdout
-			});
-
-			rl.question('Token: ', token => {
-				rl.close();
-				resolve(token);
-			});
-		}))
-	]);
+	const directory = await new Promise((resolve, reject) => {
+		const directory = new Directory(options.extraDirectories[0], true);
+		directory.once('ready', resolve);
+		directory.once('error', reject);
+	});
 
 	console.log(`${options.extraDirectories[0]} parsed`);
+
+	await gazou.authSubmit(await new Promise(resolve => {
+		const rl = readline.createInterface({
+			input: process.stdin,
+			output: process.stdout
+		});
+
+		rl.question('Token: ', token => {
+			rl.close();
+			resolve(token);
+		});
+	}));
+
 	console.log(`Logged into Gazou at ${options.server ? options.server : config.autoConnect.url}`);
 
-	for (const [name, image] of directory.data.images) {
-		console.log(name);
+	const serverHasImages = await gazou.hasHash(Array.from(directory.data.images.values()).map(({hash}) => {
+		return hash
+	}));
+
+	for (const [, image] of directory.data.images) {
+		if (!serverHasImages.includes(image.hash)) {
+			await new Promise((resolve, reject) => {
+				child_process.exec(`${directory.location}/${image.name}`, () => {
+					resolve();
+				});
+			});
+		}
 	}
 
 }).catch(err => {

@@ -1,15 +1,18 @@
 const EventEmitter = require('events');
+const crypto = require('crypto');
 
+const fs = require('fs');
 const fsPromise = require('./fspromise');
 const imageTypeRegex = /\.(png|jpg|jpeg|gif)$/gmui;
 
 class Directory extends EventEmitter{
-	constructor(location) {
+	constructor(location, calculateHash = false) {
 		super();
 
 		this.data = {
 			ready: false,
 			location,
+			calculateHash,
 			images: new Map(),
 			directories: new Map(),
 			iterImages: undefined,
@@ -25,6 +28,9 @@ class Directory extends EventEmitter{
 
 	async repopulate() {
 		this.data.ready = false;
+
+
+
 		try {
 			const directory = await fsPromise.readDir(this.data.location, {withFileTypes: true});
 
@@ -36,15 +42,27 @@ class Directory extends EventEmitter{
 					stats.name = name;
 					if (stats.isDirectory())
 						this.data.directories.set(name, stats);
-					else if (stats.isFile() && name.match(imageTypeRegex))
+					else if (stats.isFile() && name.match(imageTypeRegex)) {
+						if (this.data.calculateHash) {
+							const hash = crypto.createHash('sha1');
+							hash.update(fs.readFileSync(`${this.data.location}/${name}`));
+							stats.hash = hash.digest('hex');
+						}
 						this.data.images.set(name, stats);
+					}
 				}
 			} else // Node Version 10.10.0 and up
 				for (const item of directory)
 					if (item.isDirectory())
 						this.data.directories.set(item.name, item);
-					else if (item.isFile() && item.name.match(imageTypeRegex))
+					else if (item.isFile() && item.name.match(imageTypeRegex)) {
+						if (this.data.calculateHash) {
+							const hash = crypto.createHash('sha1');
+							hash.update(fs.readFileSync(`${this.data.location}/${item.name}`));
+							item.hash = hash.digest('hex');
+						}
 						this.data.images.set(item.name, item);
+					}
 
 			this.data.iterDirectories = this.data.directories.entries();
 			this.data.iterImages = this.data.images.entries();
