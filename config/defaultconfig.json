@@ -4,7 +4,7 @@
     "directory": "~/.gazoustorage"
   },
   "autoConnect": {
-    "ip": "localhost",
+    "url": "wss://localhost",
     "userId": ""
   }
 }

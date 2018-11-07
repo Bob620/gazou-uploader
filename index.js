@@ -48,8 +48,8 @@ options.noStorage = !((!options.noStorage || config.globalStorage.enabled) && (o
 if (options.extraDirectories.length === 0)
 	throw 'Please provide a directory to operate over';
 
-if (options.server || config.autoConnect.ip)
-	gazou = new Gazou(options.server ? options.server : config.autoConnect.ip);
+if (options.server || config.autoConnect.url)
+	gazou = new Gazou(options.server ? options.server : config.autoConnect.url);
 else
 	throw 'Please provide a server to connect to';
 
@@ -79,7 +79,7 @@ gazou.connect().then(async () => {
 	]);
 
 	console.log(`${options.extraDirectories[0]} parsed`);
-	console.log(`Logged into Gazou at ${options.server ? options.server : config.autoConnect.ip}`);
+	console.log(`Logged into Gazou at ${options.server ? options.server : config.autoConnect.url}`);
 
 	for (const [name, image] of directory.data.images) {
 		console.log(name);
