@@ -12,7 +12,8 @@ let options = {
 	storageLocation: config && config.globalStorage ? config.globalStorage.directory : undefined,
 	noStorage: false,
 	push: false,
-	extraDirectories: []
+	extraDirectories: [],
+	structure: []
 };
 
 for (let i = 1; i < process.argv.length; i++) {
@@ -40,6 +41,10 @@ for (let i = 1; i < process.argv.length; i++) {
 		case '--nostorage':
 		case '-n':
 			options.noStorage = true;
+			break;
+		case '--filestructure':
+		case '-f':
+			options.structure = process.argv[++i].split('>');
 			break;
 	}
 }
@@ -86,16 +91,64 @@ gazou.connect().then(async () => {
 		return hash
 	}));
 
+	let uploaded = [];
+
 	for (const [, image] of directory.data.images) {
 		if (!serverHasImages.includes(image.hash)) {
-			await new Promise((resolve, reject) => {
-				child_process.exec(`${directory.location}/${image.name}`, () => {
-					resolve();
-				});
-			});
+			child_process.exec(`start "" "${directory.data.location}\\${image.name}"`, () => {});
+
+			const {author, tags} = await requestImageMeta();
+
+			if (author || tags) {
+				const {uuid, uploadLink} = await gazou.upload(image.hash, image.type, author, tags);
+
+				uploaded.push(uuid);
+				await gazou.uploadImage(uploadLink, `${directory.data.location}\\${image.name}`);
+			}
 		}
 	}
+
+	console.log(uploaded);
 
 }).catch(err => {
 	console.error(err);
 });
+
+function requestImageMeta() {
+	return new Promise(resolve => {
+		const rl = readline.createInterface({
+			input: process.stdin,
+			output: process.stdout
+		});
+
+		let output = {
+			author: '',
+			tags: []
+		};
+
+		rl.question('Author: ', author => {
+			if (author === '!!!skip!!!') {
+				resolve({});
+				rl.close();
+				return;
+			}
+			if (author === 'unknown')
+				author = '';
+			output.author = author;
+
+			rl.question('Tags: ', tags => {
+				output.tags = tags.split(', ');
+
+				console.log(output);
+
+				rl.question('Correct? ', ans => {
+					if (ans[0] === 'y') {
+						rl.close();
+						resolve(output);
+					} else
+						resolve(requestImageMeta());
+				});
+			});
+		});
+	});
+}

@@ -3,7 +3,7 @@ const crypto = require('crypto');
 
 const fs = require('fs');
 const fsPromise = require('./fspromise');
-const imageTypeRegex = /\.(png|jpg|jpeg|gif)$/gmui;
+const imageTypeRegex = /\.(png|jpg|jpeg|gif)$/ui;
 
 class Directory extends EventEmitter{
 	constructor(location, calculateHash = false) {
@@ -14,9 +14,7 @@ class Directory extends EventEmitter{
 			location,
 			calculateHash,
 			images: new Map(),
-			directories: new Map(),
-			iterImages: undefined,
-			iterDirectories: undefined
+			directories: new Map()
 		};
 
 		this.repopulate().then(() => {}).catch(err => {});
@@ -41,27 +39,35 @@ class Directory extends EventEmitter{
 					let stats = await fsPromise.stat(`${this.data.location}/${name}`);
 					stats.name = name;
 					if (stats.isDirectory())
-						this.data.directories.set(name, stats);
-					else if (stats.isFile() && name.match(imageTypeRegex)) {
-						if (this.data.calculateHash) {
-							const hash = crypto.createHash('sha1');
-							hash.update(fs.readFileSync(`${this.data.location}/${name}`));
-							stats.hash = hash.digest('hex');
+						this.data.directories.set(name, new Directory(`${this.data.location}/${name}`, this.data.calculateHash));
+					else if (item.isFile()) {
+						const ext = imageTypeRegex.exec(name);
+						if (ext && ext[1]) {
+							if (this.data.calculateHash) {
+								const hash = crypto.createHash('sha1');
+								hash.update(fs.readFileSync(`${this.data.location}/${name}`));
+								stats.hash = hash.digest('hex');
+							}
+							stats.type = ext[1];
+							this.data.images.set(name, stats);
 						}
-						this.data.images.set(name, stats);
 					}
 				}
 			} else // Node Version 10.10.0 and up
 				for (const item of directory)
 					if (item.isDirectory())
-						this.data.directories.set(item.name, item);
-					else if (item.isFile() && item.name.match(imageTypeRegex)) {
-						if (this.data.calculateHash) {
-							const hash = crypto.createHash('sha1');
-							hash.update(fs.readFileSync(`${this.data.location}/${item.name}`));
-							item.hash = hash.digest('hex');
+						this.data.directories.set(item.name, new Directory(`${this.data.location}/${item.name}`, this.data.calculateHash));
+					else if (item.isFile()) {
+						const ext = imageTypeRegex.exec(item.name);
+						if (ext && ext[1]) {
+							if (this.data.calculateHash) {
+								const hash = crypto.createHash('sha1');
+								hash.update(fs.readFileSync(`${this.data.location}/${item.name}`));
+								item.hash = hash.digest('hex');
+							}
+							item.type = ext[1];
+							this.data.images.set(item.name, item);
 						}
-						this.data.images.set(item.name, item);
 					}
 
 			this.data.iterDirectories = this.data.directories.entries();
@@ -90,19 +96,6 @@ class Directory extends EventEmitter{
 		return this.data.images.entries();
 	}
 
-	nextDirectory() {
-		if(this.data.directories.size === 0 && this.data.iterDirectories)
-			return undefined;
-		else
-			this.data.iterDirectories.next().value;
-	}
-
-	nextImage() {
-		if(this.data.images.size === 0 && this.data.iterImages)
-			return undefined;
-		else
-			this.data.iterImages.next().value;
-	}
 }
 
 module.exports = Directory;
