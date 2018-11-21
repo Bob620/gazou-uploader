@@ -44,7 +44,7 @@ for (let i = 1; i < process.argv.length; i++) {
 			break;
 		case '--filestructure':
 		case '-f':
-			options.structure = process.argv[++i].split('>');
+			options.structure = process.argv[++i];
 			break;
 	}
 }
@@ -93,14 +93,40 @@ gazou.connect().then(async () => {
 
 	let uploaded = [];
 
+	if (options.structure[0] === 'twitter') {
+		for (const [name, dir] of directory.data.directories) {
+			for (const [, image] of dir.data.images) {
+				if (!serverHasImages.includes(image.hash)) {
+					child_process.exec(`start "" "${directory.data.location}\\${image.name}"`, () => {});
+
+					const {artist, tags} = await requestImageMeta(name);
+
+					if (artist)
+						await gazou.setArtist(artist, {
+							addLinks: {
+								twitter: `https://twitter.com/${name}`
+							}
+						});
+
+					if (artist || tags) {
+						const {uuid, uploadLink} = await gazou.upload(image.hash, image.type, artist, tags);
+
+						uploaded.push(uuid);
+						await gazou.uploadImage(uploadLink, `${directory.data.location}\\${image.name}`);
+					}
+				}
+			}
+		}
+	}
+
 	for (const [, image] of directory.data.images) {
 		if (!serverHasImages.includes(image.hash)) {
 			child_process.exec(`start "" "${directory.data.location}\\${image.name}"`, () => {});
 
-			const {author, tags} = await requestImageMeta();
+			const {artist, tags} = await requestImageMeta();
 
-			if (author || tags) {
-				const {uuid, uploadLink} = await gazou.upload(image.hash, image.type, author, tags);
+			if (artist || tags) {
+				const {uuid, uploadLink} = await gazou.upload(image.hash, image.type, artist, tags);
 
 				uploaded.push(uuid);
 				await gazou.uploadImage(uploadLink, `${directory.data.location}\\${image.name}`);
@@ -114,7 +140,7 @@ gazou.connect().then(async () => {
 	console.error(err);
 });
 
-function requestImageMeta() {
+function requestImageMeta(defaultArtist='unknown') {
 	return new Promise(resolve => {
 		const rl = readline.createInterface({
 			input: process.stdin,
@@ -122,11 +148,11 @@ function requestImageMeta() {
 		});
 
 		let output = {
-			author: '',
+			artist: '',
 			tags: []
 		};
 
-		rl.question('Author: ', author => {
+		rl.question(`Artist[${defaultArtist}]: `, author => {
 			if (author === '!!!skip!!!') {
 				resolve({});
 				rl.close();
@@ -134,7 +160,7 @@ function requestImageMeta() {
 			}
 			if (author === 'unknown')
 				author = '';
-			output.author = author;
+			output.artist = author;
 
 			rl.question('Tags: ', tags => {
 				output.tags = tags.split(', ');
