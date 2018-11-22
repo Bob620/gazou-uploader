@@ -44,7 +44,7 @@ for (let i = 1; i < process.argv.length; i++) {
 			break;
 		case '--filestructure':
 		case '-f':
-			options.structure = process.argv[++i];
+			options.structure.push(process.argv[++i]);
 			break;
 	}
 }
@@ -87,51 +87,57 @@ gazou.connect().then(async () => {
 
 	console.log(`Logged into Gazou at ${options.server ? options.server : config.autoConnect.url}`);
 
-	const serverHasImages = await gazou.hasHash(Array.from(directory.data.images.values()).map(({hash}) => {
-		return hash
-	}));
+
 
 	let uploaded = [];
 
-	if (options.structure[0] === 'twitter') {
-		for (const [name, dir] of directory.data.directories) {
-			for (const [, image] of dir.data.images) {
+	if (options.structure[0] === 'twitter')
+		for (const [twitterHandle, dir] of directory.data.directories) {
+			const serverHasImages = await gazou.hasHash(Array.from(dir.data.images.values()).map(({hash}) => {
+				return hash
+			}));
+
+			for (const [, image] of dir.data.images)
 				if (!serverHasImages.includes(image.hash)) {
-					child_process.exec(`start "" "${directory.data.location}\\${image.name}"`, () => {});
+					child_process.exec(`start "" "${dir.data.location}\\${image.name}"`, () => {
+					});
 
-					const {artist, tags} = await requestImageMeta(name);
-
-					if (artist)
-						await gazou.setArtist(artist, {
-							addLinks: {
-								twitter: `https://twitter.com/${name}`
-							}
-						});
+					const {artist, tags} = await requestImageMeta(twitterHandle);
 
 					if (artist || tags) {
 						const {uuid, uploadLink} = await gazou.upload(image.hash, image.type, artist, tags);
 
 						uploaded.push(uuid);
-						await gazou.uploadImage(uploadLink, `${directory.data.location}\\${image.name}`);
+						await gazou.uploadImage(uploadLink, `${dir.data.location}\\${image.name}`);
 					}
+
+					if (artist)
+						await gazou.setArtist(artist, {
+							addLinks: {
+								twitter: `https://twitter.com/${twitterHandle}`
+							}
+						});
+				}
+		}
+	else {
+		const serverHasImages = await gazou.hasHash(Array.from(directory.data.images.values()).map(({hash}) => {
+			return hash
+		}));
+
+		for (const [, image] of directory.data.images)
+			if (!serverHasImages.includes(image.hash)) {
+				child_process.exec(`start "" "${directory.data.location}\\${image.name}"`, () => {
+				});
+
+				const {artist, tags} = await requestImageMeta();
+
+				if (artist || tags) {
+					const {uuid, uploadLink} = await gazou.upload(image.hash, image.type, artist, tags);
+
+					uploaded.push(uuid);
+					await gazou.uploadImage(uploadLink, `${directory.data.location}\\${image.name}`);
 				}
 			}
-		}
-	}
-
-	for (const [, image] of directory.data.images) {
-		if (!serverHasImages.includes(image.hash)) {
-			child_process.exec(`start "" "${directory.data.location}\\${image.name}"`, () => {});
-
-			const {artist, tags} = await requestImageMeta();
-
-			if (artist || tags) {
-				const {uuid, uploadLink} = await gazou.upload(image.hash, image.type, artist, tags);
-
-				uploaded.push(uuid);
-				await gazou.uploadImage(uploadLink, `${directory.data.location}\\${image.name}`);
-			}
-		}
 	}
 
 	console.log(uploaded);
@@ -152,15 +158,17 @@ function requestImageMeta(defaultArtist='unknown') {
 			tags: []
 		};
 
-		rl.question(`Artist[${defaultArtist}]: `, author => {
-			if (author === '!!!skip!!!') {
+		rl.question(`Artist[${defaultArtist}]: `, artist => {
+			if (artist === '!!!skip!!!') {
 				resolve({});
 				rl.close();
 				return;
 			}
-			if (author === 'unknown')
-				author = '';
-			output.artist = author;
+
+			if (artist === 'unknown')
+				artist = '';
+
+			output.artist = artist ? artist : defaultArtist;
 
 			rl.question('Tags: ', tags => {
 				output.tags = tags.split(', ');
@@ -172,7 +180,7 @@ function requestImageMeta(defaultArtist='unknown') {
 						rl.close();
 						resolve(output);
 					} else
-						resolve(requestImageMeta());
+						resolve(requestImageMeta(defaultArtist));
 				});
 			});
 		});
